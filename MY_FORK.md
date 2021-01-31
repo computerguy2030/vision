@@ -5,6 +5,7 @@ I am creating this fork after some frustration with installing Pytorch while pla
 ### Requirements:
 * ROCm 
 * Pytorch
+<br>
 
 ### Install 
 Note: Do not use pip. This will use torchvision CPU
@@ -16,6 +17,7 @@ Download source:
 Execute setup.py:
 
     sudo python3 setup.py install
+<br>
 
 ### Test:
 Note: Do not execute in github folder
@@ -24,5 +26,5 @@ Note: Do not execute in github folder
     torchvision.__version__
 
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTc3Mjk0OTEzOF19
+eyJoaXN0b3J5IjpbLTYyOTY0OTYxMF19
 -->
