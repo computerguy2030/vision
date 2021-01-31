@@ -1,6 +1,7 @@
 ## Torchvision
 ### WHY:
-I am createing this fork after some frustration with installing Pytorch while playing around with ML project DeOldify
+I am creating this fork after some frustration with installing Pytorch while playing around with Machine Learning (ML) project [DeOldify](https://github.com/jantic/DeOldify) which I highly recommend if you are interested in getting started in AI, Deep Learning and ML
+
 ### Requirements:
 * ROCm 
 * Pytorch
@@ -21,5 +22,5 @@ Execute setup.py:
 import torchvision
 torchvision.__version__
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbODg0MTg4MjQ1XX0=
+eyJoaXN0b3J5IjpbMjEyODE0NDEyXX0=
 -->
