@@ -1,6 +1,6 @@
 ## Torchvision
 ### WHY:
-I am creating this fork after some frustration with installing Pytorch while playing around with Machine Learning (ML) project [DeOldify](https://github.com/jantic/DeOldify) which I highly recommend if you are interested in getting started in AI, Deep Learning and ML
+I am creating this fork after some frustration with installing Pytorch while playing around with Machine Learning (ML) project [DeOldify](https://github.com/jantic/DeOldify) which I highly recommend if you are interested in getting started in AI, Deep Learning, and ML. Instructions for DeOldify on AMD here. 
 
 ### Requirements:
 * ROCm 
@@ -18,9 +18,9 @@ Execute setup.py:
     sudo python3 setup.py install
 
 ### Test:
-
+Note: Do not execute in github folder
 import torchvision
 torchvision.__version__
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMjEyODE0NDEyXX0=
+eyJoaXN0b3J5IjpbLTE4NzQwNDIzODZdfQ==
 -->
