@@ -25,12 +25,13 @@ Note: Do not execute in github folder
 
     import torchvision
     torchvision.__version__
-    <br>
+    
+   <br>
     
 ### Uninstall:
 
-    enter code here
+    pip uninstall torchvision
 
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTEwNDkzNTI1NDAsLTYyOTY0OTYxMF19
+eyJoaXN0b3J5IjpbNzUwNzU0MTQ0LC02Mjk2NDk2MTBdfQ==
 -->
