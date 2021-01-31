@@ -19,8 +19,10 @@ Execute setup.py:
 
 ### Test:
 Note: Do not execute in github folder
-import torchvision
-torchvision.__version__
+
+    import torchvision
+    torchvision.__version__
+
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTE4NzQwNDIzODZdfQ==
+eyJoaXN0b3J5IjpbLTc3Mjk0OTEzOF19
 -->
