@@ -1,4 +1,9 @@
 torchvision
+
+** [MY_FORK](https://github.com/computerguy2030/vision/blob/master/MY_FORK.md)
+Instructions provided for installing torchvision for ROCm platform. Created for use on DeOldify.
+
+
 ===========
 
 .. image:: https://codecov.io/gh/pytorch/vision/branch/master/graph/badge.svg
