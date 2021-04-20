@@ -1,7 +1,7 @@
 torchvision
 
-** [MY_FORK](https://github.com/computerguy2030/vision/blob/master/MY_FORK.md)
-Instructions provided for installing torchvision for ROCm platform. Created for use on DeOldify.
+`MY_FORK <https://github.com/computerguy2030/vision/blob/master/MY_FORK.md>`_
+: Instructions provided for installing torchvision for ROCm platform. Created for use on DeOldify. This fork is only merged with main torchvision if I have tested updates are compatible with ROCm.
 
 
 ===========
