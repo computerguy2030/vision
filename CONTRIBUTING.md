@@ -33,7 +33,7 @@ clear and has sufficient instructions to be able to reproduce the issue.
 ### Install PyTorch Nightly 
 
 ```bash
-conda install pytorch -c pytorch-nightly
+conda install pytorch -c pytorch-nightly -c conda-forge
 # or with pip (see https://pytorch.org/get-started/locally/)
 # pip install numpy
 # pip install --pre torch -f https://download.pytorch.org/whl/nightly/cu102/torch_nightly.html
@@ -91,13 +91,16 @@ If you have modified the code by adding a new feature or a bug-fix, please add u
 test: 
 ```bash
 pytest test/<test-module.py> -vvv -k <test_myfunc>
-# e.g. pytest test/test_transforms.py -vvv -k test_crop
+# e.g. pytest test/test_transforms.py -vvv -k test_center_crop
 ```
 
 If you would like to run all tests:
 ```bash
 pytest test -vvv
 ``` 
+
+Tests that require internet access should be in
+`test/test_internet.py`.
 
 ### Documentation
 
@@ -120,15 +123,7 @@ cd docs
 make html
 ```
 
-#### Local deployment
-
-Please, use python 3.X for the command below:
-```bash
-cd docs/build/html
-python -m http.server <port>
-# e.g. python -m http.server 1234
-```
-Then open the browser at `0.0.0.0:<port>` (e.g. `0.0.0.0:1234`)
+Then open `docs/build/html/index.html` in your favorite browser.
 
 ### New model
 

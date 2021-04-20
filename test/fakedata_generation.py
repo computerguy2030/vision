@@ -13,6 +13,48 @@ from torchvision.io.video import write_video
 import unittest.mock
 import hashlib
 from distutils import dir_util
+import re
+
+
+def mock_class_attribute(stack, target, new):
+    mock = unittest.mock.patch(target, new_callable=unittest.mock.PropertyMock, return_value=new)
+    stack.enter_context(mock)
+    return mock
+
+
+def compute_md5(file):
+    with open(file, "rb") as fh:
+        return hashlib.md5(fh.read()).hexdigest()
+
+
+def make_tar(root, name, *files, compression=None):
+    ext = ".tar"
+    mode = "w"
+    if compression is not None:
+        ext = f"{ext}.{compression}"
+        mode = f"{mode}:{compression}"
+
+    name = os.path.splitext(name)[0] + ext
+    archive = os.path.join(root, name)
+
+    with tarfile.open(archive, mode) as fh:
+        for file in files:
+            fh.add(os.path.join(root, file), arcname=file)
+
+    return name, compute_md5(archive)
+
+
+def clean_dir(root, *keep):
+    pattern = re.compile(f"({f')|('.join(keep)})")
+    for file_or_dir in os.listdir(root):
+        if pattern.search(file_or_dir):
+            continue
+
+        file_or_dir = os.path.join(root, file_or_dir)
+        if os.path.isfile(file_or_dir):
+            os.remove(file_or_dir)
+        else:
+            dir_util.remove_tree(file_or_dir)
 
 
 @contextlib.contextmanager
@@ -102,76 +144,6 @@ def cifar_root(version):
 
 
 @contextlib.contextmanager
-def imagenet_root():
-    import scipy.io as sio
-
-    WNID = 'n01234567'
-    CLS = 'fakedata'
-
-    def _make_image(file):
-        PIL.Image.fromarray(np.zeros((32, 32, 3), dtype=np.uint8)).save(file)
-
-    def _make_tar(archive, content, arcname=None, compress=False):
-        mode = 'w:gz' if compress else 'w'
-        if arcname is None:
-            arcname = os.path.basename(content)
-        with tarfile.open(archive, mode) as fh:
-            fh.add(content, arcname=arcname)
-
-    def _make_train_archive(root):
-        with get_tmp_dir() as tmp:
-            wnid_dir = os.path.join(tmp, WNID)
-            os.mkdir(wnid_dir)
-
-            _make_image(os.path.join(wnid_dir, WNID + '_1.JPEG'))
-
-            wnid_archive = wnid_dir + '.tar'
-            _make_tar(wnid_archive, wnid_dir)
-
-            train_archive = os.path.join(root, 'ILSVRC2012_img_train.tar')
-            _make_tar(train_archive, wnid_archive)
-
-    def _make_val_archive(root):
-        with get_tmp_dir() as tmp:
-            val_image = os.path.join(tmp, 'ILSVRC2012_val_00000001.JPEG')
-            _make_image(val_image)
-
-            val_archive = os.path.join(root, 'ILSVRC2012_img_val.tar')
-            _make_tar(val_archive, val_image)
-
-    def _make_devkit_archive(root):
-        with get_tmp_dir() as tmp:
-            data_dir = os.path.join(tmp, 'data')
-            os.mkdir(data_dir)
-
-            meta_file = os.path.join(data_dir, 'meta.mat')
-            synsets = np.core.records.fromarrays([
-                (0.0, 1.0),
-                (WNID, ''),
-                (CLS, ''),
-                ('fakedata for the torchvision testsuite', ''),
-                (0.0, 1.0),
-            ], names=['ILSVRC2012_ID', 'WNID', 'words', 'gloss', 'num_children'])
-            sio.savemat(meta_file, {'synsets': synsets})
-
-            groundtruth_file = os.path.join(data_dir,
-                                            'ILSVRC2012_validation_ground_truth.txt')
-            with open(groundtruth_file, 'w') as fh:
-                fh.write('0\n')
-
-            devkit_name = 'ILSVRC2012_devkit_t12'
-            devkit_archive = os.path.join(root, devkit_name + '.tar.gz')
-            _make_tar(devkit_archive, tmp, arcname=devkit_name, compress=True)
-
-    with get_tmp_dir() as root:
-        _make_train_archive(root)
-        _make_val_archive(root)
-        _make_devkit_archive(root)
-
-        yield root
-
-
-@contextlib.contextmanager
 def widerface_root():
     """
     Generates a dataset with the following folder structure and returns the path root:
@@ -239,153 +211,7 @@ def widerface_root():
 
 
 @contextlib.contextmanager
-def cityscapes_root():
-
-    def _make_image(file):
-        PIL.Image.fromarray(np.zeros((1024, 2048, 3), dtype=np.uint8)).save(file)
-
-    def _make_regular_target(file):
-        PIL.Image.fromarray(np.zeros((1024, 2048), dtype=np.uint8)).save(file)
-
-    def _make_color_target(file):
-        PIL.Image.fromarray(np.zeros((1024, 2048, 4), dtype=np.uint8)).save(file)
-
-    def _make_polygon_target(file):
-        polygon_example = {
-            'imgHeight': 1024,
-            'imgWidth': 2048,
-            'objects': [{'label': 'sky',
-                         'polygon': [[1241, 0], [1234, 156],
-                                     [1478, 197], [1611, 172],
-                                     [1606, 0]]},
-                        {'label': 'road',
-                         'polygon': [[0, 448], [1331, 274],
-                                     [1473, 265], [2047, 605],
-                                     [2047, 1023], [0, 1023]]}]}
-        with open(file, 'w') as outfile:
-            json.dump(polygon_example, outfile)
-
-    with get_tmp_dir() as tmp_dir:
-
-        for mode in ['Coarse', 'Fine']:
-            gt_dir = os.path.join(tmp_dir, 'gt%s' % mode)
-            os.makedirs(gt_dir)
-
-            if mode == 'Coarse':
-                splits = ['train', 'train_extra', 'val']
-            else:
-                splits = ['train', 'test', 'val']
-
-            for split in splits:
-                split_dir = os.path.join(gt_dir, split)
-                os.makedirs(split_dir)
-                for city in ['bochum', 'bremen']:
-                    city_dir = os.path.join(split_dir, city)
-                    os.makedirs(city_dir)
-                    _make_color_target(os.path.join(city_dir,
-                                                    '{city}_000000_000000_gt{mode}_color.png'.format(
-                                                        city=city, mode=mode)))
-                    _make_regular_target(os.path.join(city_dir,
-                                                      '{city}_000000_000000_gt{mode}_instanceIds.png'.format(
-                                                          city=city, mode=mode)))
-                    _make_regular_target(os.path.join(city_dir,
-                                                      '{city}_000000_000000_gt{mode}_labelIds.png'.format(
-                                                          city=city, mode=mode)))
-                    _make_polygon_target(os.path.join(city_dir,
-                                                      '{city}_000000_000000_gt{mode}_polygons.json'.format(
-                                                          city=city, mode=mode)))
-
-        # leftImg8bit dataset
-        leftimg_dir = os.path.join(tmp_dir, 'leftImg8bit')
-        os.makedirs(leftimg_dir)
-        for split in ['test', 'train_extra', 'train', 'val']:
-            split_dir = os.path.join(leftimg_dir, split)
-            os.makedirs(split_dir)
-            for city in ['bochum', 'bremen']:
-                city_dir = os.path.join(split_dir, city)
-                os.makedirs(city_dir)
-                _make_image(os.path.join(city_dir,
-                                         '{city}_000000_000000_leftImg8bit.png'.format(city=city)))
-
-        yield tmp_dir
-
-
-@contextlib.contextmanager
-def svhn_root():
-    import scipy.io as sio
-
-    def _make_mat(file):
-        images = np.zeros((32, 32, 3, 2), dtype=np.uint8)
-        targets = np.zeros((2,), dtype=np.uint8)
-        sio.savemat(file, {'X': images, 'y': targets})
-
-    with get_tmp_dir() as root:
-        _make_mat(os.path.join(root, "train_32x32.mat"))
-        _make_mat(os.path.join(root, "test_32x32.mat"))
-        _make_mat(os.path.join(root, "extra_32x32.mat"))
-
-        yield root
-
-
-@contextlib.contextmanager
-def voc_root():
-    with get_tmp_dir() as tmp_dir:
-        voc_dir = os.path.join(tmp_dir, 'VOCdevkit',
-                               'VOC2012', 'ImageSets', 'Main')
-        os.makedirs(voc_dir)
-        train_file = os.path.join(voc_dir, 'train.txt')
-        with open(train_file, 'w') as f:
-            f.write('test')
-
-        yield tmp_dir
-
-
-@contextlib.contextmanager
-def ucf101_root():
-    with get_tmp_dir() as tmp_dir:
-        ucf_dir = os.path.join(tmp_dir, 'UCF-101')
-        video_dir = os.path.join(ucf_dir, 'video')
-        annotations = os.path.join(ucf_dir, 'annotations')
-
-        os.makedirs(ucf_dir)
-        os.makedirs(video_dir)
-        os.makedirs(annotations)
-
-        fold_files = []
-        for split in {'train', 'test'}:
-            for fold in range(1, 4):
-                fold_file = '{:s}list{:02d}.txt'.format(split, fold)
-                fold_files.append(os.path.join(annotations, fold_file))
-
-        file_handles = [open(x, 'w') for x in fold_files]
-        file_iter = cycle(file_handles)
-
-        for i in range(0, 2):
-            current_class = 'class_{0}'.format(i + 1)
-            class_dir = os.path.join(video_dir, current_class)
-            os.makedirs(class_dir)
-            for group in range(0, 3):
-                for clip in range(0, 4):
-                    # Save sample file
-                    clip_name = 'v_{0}_g{1}_c{2}.avi'.format(
-                        current_class, group, clip)
-                    clip_path = os.path.join(class_dir, clip_name)
-                    length = random.randrange(10, 21)
-                    this_clip = torch.randint(
-                        0, 256, (length * 25, 320, 240, 3), dtype=torch.uint8)
-                    write_video(clip_path, this_clip, 25)
-                    # Add to annotations
-                    ann_file = next(file_iter)
-                    ann_file.write('{0}\n'.format(
-                        os.path.join(current_class, clip_name)))
-        # Close all file descriptors
-        for f in file_handles:
-            f.close()
-        yield (video_dir, annotations)
-
-
-@contextlib.contextmanager
-def places365_root(split="train-standard", small=False, extract_images=True):
+def places365_root(split="train-standard", small=False):
     VARIANTS = {
         "train-standard": "standard",
         "train-challenge": "challenge",
@@ -425,15 +251,6 @@ def places365_root(split="train-standard", small=False, extract_images=True):
     def mock_target(attr, partial="torchvision.datasets.places365.Places365"):
         return f"{partial}.{attr}"
 
-    def mock_class_attribute(stack, attr, new):
-        mock = unittest.mock.patch(mock_target(attr), new_callable=unittest.mock.PropertyMock, return_value=new)
-        stack.enter_context(mock)
-        return mock
-
-    def compute_md5(file):
-        with open(file, "rb") as fh:
-            return hashlib.md5(fh.read()).hexdigest()
-
     def make_txt(root, name, seq):
         file = os.path.join(root, name)
         with open(file, "w") as fh:
@@ -451,37 +268,20 @@ def places365_root(split="train-standard", small=False, extract_images=True):
         os.makedirs(os.path.dirname(file), exist_ok=True)
         PIL.Image.fromarray(np.zeros((*size, 3), dtype=np.uint8)).save(file)
 
-    def make_tar(root, name, *files, remove_files=True):
-        name = f"{os.path.splitext(name)[0]}.tar"
-        archive = os.path.join(root, name)
-
-        with tarfile.open(archive, "w") as fh:
-            for file in files:
-                fh.add(os.path.join(root, file), arcname=file)
-
-        if remove_files:
-            for file in [os.path.join(root, file) for file in files]:
-                if os.path.isdir(file):
-                    dir_util.remove_tree(file)
-                else:
-                    os.remove(file)
-
-        return name, compute_md5(archive)
-
     def make_devkit_archive(stack, root, split):
         archive = DEVKITS[split]
         files = []
 
         meta = make_categories_txt(root, CATEGORIES)
-        mock_class_attribute(stack, "_CATEGORIES_META", meta)
+        mock_class_attribute(stack, mock_target("_CATEGORIES_META"), meta)
         files.append(meta[0])
 
         meta = {split: make_file_list_txt(root, FILE_LISTS[split])}
-        mock_class_attribute(stack, "_FILE_LIST_META", meta)
+        mock_class_attribute(stack, mock_target("_FILE_LIST_META"), meta)
         files.extend([item[0] for item in meta.values()])
 
         meta = {VARIANTS[split]: make_tar(root, archive, *files)}
-        mock_class_attribute(stack, "_DEVKIT_META", meta)
+        mock_class_attribute(stack, mock_target("_DEVKIT_META"), meta)
 
     def make_images_archive(stack, root, split, small):
         archive, folder_default, folder_renamed = IMAGES[(split, small)]
@@ -493,7 +293,7 @@ def places365_root(split="train-standard", small=False, extract_images=True):
             make_image(os.path.join(root, folder_default, image), image_size)
 
         meta = {(split, small): make_tar(root, archive, folder_default)}
-        mock_class_attribute(stack, "_IMAGES_META", meta)
+        mock_class_attribute(stack, mock_target("_IMAGES_META"), meta)
 
         return [(os.path.join(root, folder_renamed, image), idx) for image, idx in zip(images, idcs)]
 
@@ -501,12 +301,10 @@ def places365_root(split="train-standard", small=False, extract_images=True):
         make_devkit_archive(stack, root, split)
         class_to_idx = dict(CATEGORIES_CONTENT)
         classes = list(class_to_idx.keys())
-        data = {"class_to_idx": class_to_idx, "classes": classes}
 
-        if extract_images:
-            data["imgs"] = make_images_archive(stack, root, split, small)
-        else:
-            stack.enter_context(unittest.mock.patch(mock_target("download_images")))
-            data["imgs"] = None
+        data = {"class_to_idx": class_to_idx, "classes": classes}
+        data["imgs"] = make_images_archive(stack, root, split, small)
+
+        clean_dir(root, ".tar$")
 
         yield root, data

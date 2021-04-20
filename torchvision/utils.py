@@ -4,10 +4,9 @@ import torch
 import math
 import warnings
 import numpy as np
-from PIL import Image, ImageDraw
-from PIL import ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageColor
 
-__all__ = ["make_grid", "save_image", "draw_bounding_boxes"]
+__all__ = ["make_grid", "save_image", "draw_bounding_boxes", "draw_segmentation_masks"]
 
 
 @torch.no_grad()
@@ -21,7 +20,8 @@ def make_grid(
     pad_value: int = 0,
     **kwargs
 ) -> torch.Tensor:
-    """Make a grid of images.
+    """
+    Make a grid of images.
 
     Args:
         tensor (Tensor or list): 4D mini-batch Tensor of shape (B x C x H x W)
@@ -38,9 +38,12 @@ def make_grid(
             images separately rather than the (min, max) over all images. Default: ``False``.
         pad_value (float, optional): Value for the padded pixels. Default: ``0``.
 
-    Example:
-        See this notebook `here <https://gist.github.com/anonymous/bf16430f7750c023141c562f3e9f2a91>`_
+    Returns:
+        grid (Tensor): the tensor containing grid of images.
 
+    Example:
+        See this notebook
+        `here <https://github.com/pytorch/vision/blob/master/examples/python/visualization_utils.ipynb>`_
     """
     if not (torch.is_tensor(tensor) or
             (isinstance(tensor, list) and all(torch.is_tensor(t) for t in tensor))):
@@ -118,7 +121,8 @@ def save_image(
     format: Optional[str] = None,
     **kwargs
 ) -> None:
-    """Save a given Tensor into an image file.
+    """
+    Save a given Tensor into an image file.
 
     Args:
         tensor (Tensor or list): Image to be saved. If given a mini-batch tensor,
@@ -142,6 +146,7 @@ def draw_bounding_boxes(
     boxes: torch.Tensor,
     labels: Optional[List[str]] = None,
     colors: Optional[List[Union[str, Tuple[int, int, int]]]] = None,
+    fill: Optional[bool] = False,
     width: int = 1,
     font: Optional[str] = None,
     font_size: int = 10
@@ -150,20 +155,29 @@ def draw_bounding_boxes(
     """
     Draws bounding boxes on given image.
     The values of the input image should be uint8 between 0 and 255.
+    If fill is True, Resulting Tensor should be saved as PNG image.
 
     Args:
-        image (Tensor): Tensor of shape (C x H x W)
+        image (Tensor): Tensor of shape (C x H x W) and dtype uint8.
         boxes (Tensor): Tensor of size (N, 4) containing bounding boxes in (xmin, ymin, xmax, ymax) format. Note that
             the boxes are absolute coordinates with respect to the image. In other words: `0 <= xmin < xmax < W` and
             `0 <= ymin < ymax < H`.
         labels (List[str]): List containing the labels of bounding boxes.
         colors (List[Union[str, Tuple[int, int, int]]]): List containing the colors of bounding boxes. The colors can
             be represented as `str` or `Tuple[int, int, int]`.
+        fill (bool): If `True` fills the bounding box with specified color.
         width (int): Width of bounding box.
         font (str): A filename containing a TrueType font. If the file is not found in this filename, the loader may
             also search in other directories, such as the `fonts/` directory on Windows or `/Library/Fonts/`,
             `/System/Library/Fonts/` and `~/Library/Fonts/` on macOS.
         font_size (int): The requested font size in points.
+
+    Returns:
+        img (Tensor[C, H, W]): Image Tensor of dtype uint8 with bounding boxes plotted.
+
+    Example:
+        See this notebook
+        `linked <https://github.com/pytorch/vision/blob/master/examples/python/visualization_utils.ipynb>`_
     """
 
     if not isinstance(image, torch.Tensor):
@@ -178,14 +192,98 @@ def draw_bounding_boxes(
 
     img_boxes = boxes.to(torch.int64).tolist()
 
-    draw = ImageDraw.Draw(img_to_draw)
+    if fill:
+        draw = ImageDraw.Draw(img_to_draw, "RGBA")
+
+    else:
+        draw = ImageDraw.Draw(img_to_draw)
+
     txt_font = ImageFont.load_default() if font is None else ImageFont.truetype(font=font, size=font_size)
 
     for i, bbox in enumerate(img_boxes):
-        color = None if colors is None else colors[i]
-        draw.rectangle(bbox, width=width, outline=color)
+        if colors is None:
+            color = None
+        else:
+            color = colors[i]
+
+        if fill:
+            if color is None:
+                fill_color = (255, 255, 255, 100)
+            elif isinstance(color, str):
+                # This will automatically raise Error if rgb cannot be parsed.
+                fill_color = ImageColor.getrgb(color) + (100,)
+            elif isinstance(color, tuple):
+                fill_color = color + (100,)
+            draw.rectangle(bbox, width=width, outline=color, fill=fill_color)
+        else:
+            draw.rectangle(bbox, width=width, outline=color)
 
         if labels is not None:
             draw.text((bbox[0], bbox[1]), labels[i], fill=color, font=txt_font)
 
-    return torch.from_numpy(np.array(img_to_draw)).permute(2, 0, 1)
+    return torch.from_numpy(np.array(img_to_draw)).permute(2, 0, 1).to(dtype=torch.uint8)
+
+
+@torch.no_grad()
+def draw_segmentation_masks(
+    image: torch.Tensor,
+    masks: torch.Tensor,
+    alpha: float = 0.2,
+    colors: Optional[List[Union[str, Tuple[int, int, int]]]] = None,
+) -> torch.Tensor:
+
+    """
+    Draws segmentation masks on given RGB image.
+    The values of the input image should be uint8 between 0 and 255.
+
+    Args:
+        image (Tensor): Tensor of shape (3 x H x W) and dtype uint8.
+        masks (Tensor): Tensor of shape (num_masks, H, W). Each containing probability of predicted class.
+        alpha (float): Float number between 0 and 1 denoting factor of transpaerency of masks.
+        colors (List[Union[str, Tuple[int, int, int]]]): List containing the colors of masks. The colors can
+            be represented as `str` or `Tuple[int, int, int]`.
+
+    Returns:
+        img (Tensor[C, H, W]): Image Tensor of dtype uint8 with segmentation masks plotted.
+
+    Example:
+        See this notebook
+        `attached <https://github.com/pytorch/vision/blob/master/examples/python/visualization_utils.ipynb>`_
+    """
+
+    if not isinstance(image, torch.Tensor):
+        raise TypeError(f"Tensor expected, got {type(image)}")
+    elif image.dtype != torch.uint8:
+        raise ValueError(f"Tensor uint8 expected, got {image.dtype}")
+    elif image.dim() != 3:
+        raise ValueError("Pass individual images, not batches")
+    elif image.size()[0] != 3:
+        raise ValueError("Pass an RGB image. Other Image formats are not supported")
+
+    num_masks = masks.size()[0]
+    masks = masks.argmax(0)
+
+    if colors is None:
+        palette = torch.tensor([2 ** 25 - 1, 2 ** 15 - 1, 2 ** 21 - 1])
+        colors_t = torch.as_tensor([i for i in range(num_masks)])[:, None] * palette
+        color_arr = (colors_t % 255).numpy().astype("uint8")
+    else:
+        color_list = []
+        for color in colors:
+            if isinstance(color, str):
+                # This will automatically raise Error if rgb cannot be parsed.
+                fill_color = ImageColor.getrgb(color)
+                color_list.append(fill_color)
+            elif isinstance(color, tuple):
+                color_list.append(color)
+
+        color_arr = np.array(color_list).astype("uint8")
+
+    _, h, w = image.size()
+    img_to_draw = Image.fromarray(masks.byte().cpu().numpy()).resize((w, h))
+    img_to_draw.putpalette(color_arr)
+
+    img_to_draw = torch.from_numpy(np.array(img_to_draw.convert('RGB')))
+    img_to_draw = img_to_draw.permute((2, 0, 1))
+
+    return (image.float() * alpha + img_to_draw.float() * (1.0 - alpha)).to(dtype=torch.uint8)
